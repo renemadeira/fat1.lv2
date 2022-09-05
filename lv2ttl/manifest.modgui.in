@@ -11,3 +11,29 @@
         modgui:label "x42-autotune" ;
         modgui:monitoredOutputs [ lv2:symbol "nmask" ] , [ lv2:symbol "nset" ] , [ lv2:symbol "error" ] ;
     ] .
+
+<http://gareus.org/oss/lv2/fat1#microtonal>
+    modgui:gui [
+        modgui:resourcesDirectory <modgui> ;
+        modgui:iconTemplate <modgui/x42-autotune.html> ;
+        modgui:stylesheet <modgui/x42-autotune.css> ;
+        modgui:screenshot <modgui/screenshot-x42-autotune.png> ;
+        modgui:thumbnail <modgui/thumbnail-x42-autotune.png> ;
+        modgui:javascript <modgui/x42-autotune.js> ;
+        modgui:brand "x42" ;
+        modgui:label "x42-autotune" ;
+        modgui:monitoredOutputs [ lv2:symbol "nmask" ] , [ lv2:symbol "nset" ] , [ lv2:symbol "error" ] ;
+    ] .
+
+<http://gareus.org/oss/lv2/fat1#scales>
+    modgui:gui [
+        modgui:resourcesDirectory <modgui> ;
+        modgui:iconTemplate <modgui/x42-autotune-sc.html> ;
+        modgui:stylesheet <modgui/x42-autotune-sc.css> ;
+        modgui:screenshot <modgui/screenshot-x42-autotune.png> ;
+        modgui:thumbnail <modgui/thumbnail-x42-autotune.png> ;
+        modgui:javascript <modgui/x42-autotune-sc.js> ;
+        modgui:brand "x42" ;
+        modgui:label "x42-autotune" ;
+        modgui:monitoredOutputs [ lv2:symbol "nmask" ] , [ lv2:symbol "nset" ] , [ lv2:symbol "error" ] ;
+    ] .
