@@ -10,7 +10,6 @@ MANDIR ?= $(PREFIX)/share/man/man1
 # see http://lv2plug.in/pages/filesystem-hierarchy-standard.html, don't use libdir
 LV2DIR ?= $(PREFIX)/lib/lv2
 
-OPTIMIZATIONS ?= -msse -msse2 -mfpmath=sse -ffast-math -fomit-frame-pointer -O3 -fno-finite-math-only -DNDEBUG
 CXXFLAGS ?= -Wall -g -Wno-unused-function
 
 PKG_CONFIG?=pkg-config
@@ -21,6 +20,22 @@ BUILDJACKAPP?=yes
 
 fat1_VERSION?=$(shell git describe --tags HEAD 2>/dev/null | sed 's/-g.*$$//;s/^v//' || echo "LV2")
 RW ?= robtk/
+
+###############################################################################
+
+MACHINE=$(shell uname -m)
+ifneq (,$(findstring x64,$(MACHINE)))
+  HAVE_SSE=yes
+endif
+ifneq (,$(findstring 86,$(MACHINE)))
+  HAVE_SSE=yes
+endif
+
+ifeq ($(HAVE_SSE),yes)
+  OPTIMIZATIONS ?= -msse -msse2 -mfpmath=sse -ffast-math -fomit-frame-pointer -O3 -fno-finite-math-only -DNDEBUG
+else
+  OPTIMIZATIONS ?= -fomit-frame-pointer -O3 -fno-finite-math-only -DNDEBUG
+endif
 
 ###############################################################################
 
@@ -146,6 +161,10 @@ endif
 # check for lv2_atom_forge_object  new in 1.8.1 deprecates lv2_atom_forge_blank
 ifeq ($(shell $(PKG_CONFIG) --atleast-version=1.8.1 lv2 && echo yes), yes)
   override CXXFLAGS += -DHAVE_LV2_1_8
+endif
+
+ifeq ($(shell $(PKG_CONFIG) --atleast-version=1.18.6 lv2 && echo yes), yes)
+  override CXXFLAGS += -DHAVE_LV2_1_18_6
 endif
 
 ifneq ($(BUILDOPENGL)$(BUILDJACKAPP), nono)
@@ -299,7 +318,7 @@ ifneq ($(BUILDOPENGL)$(BUILDJACKAPP), nono)
  -include $(RW)robtk.mk
 endif
 
-$(BUILDDIR)$(LV2GUI)$(LIB_EXT): gui/$(LV2NAME).c
+$(BUILDDIR)$(LV2GUI)$(LIB_EXT): $(GUI_DEPS)
 
 $(BUILDDIR)modgui: modgui/
 	@mkdir -p $(BUILDDIR)/modgui

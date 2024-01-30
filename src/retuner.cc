@@ -35,7 +35,9 @@ Retuner::Retuner (int fsamp)
     , _corroffs (0.0f)
     , _notemask (0xFFF)
     , _fastmode (false)
-    , _lastfastmode (false)
+    , _readahead (0)
+    , _lastreadahead (0)
+    , _voiced(false)
 {
 	int   i, h;
 	float t, x, y;
@@ -130,12 +132,6 @@ Retuner::Retuner (int fsamp)
 	for (int i = 0; i < 12; ++i) {
 		_notescale[i] = i;
 	}
-
-	if (_upsamp) {
-		_readahed = _ipsize / 2 - _frsize * 2;
-	} else {
-		_readahed = _ipsize / 2 - _frsize;
-	}
 }
 
 Retuner::~Retuner (void)
@@ -153,7 +149,7 @@ Retuner::~Retuner (void)
 int
 Retuner::process (int nfram, float const* inp, float* out)
 {
-	int   i, ii, k, fi, ra, lra;
+	int   i, ii, k, fi;
 	float ph, dp, r1, r2, dr, u1, u2, v;
 
 	// Pitch shifting is done by resampling the input at the
@@ -174,16 +170,7 @@ Retuner::process (int nfram, float const* inp, float* out)
 	// with process() calls, so we may be in the middle of
 	// a fragment here.
 
-	// Fast mode allows reading samples directly from the input,
-	// before the pitch has been computed. This is useful in
-	// live situation.
-	ra = _fastmode ? _readahed : 0;
-
 	while (nfram) {
-
-		// Last read-ahead position for crossfading if Fast mode has changed
-		lra = _lastfastmode ? _readahed : 0;
-
 		// Don't go past the end of the current fragment.
 		k = _frsize - fi;
 		if (nfram < k)
@@ -222,13 +209,13 @@ Retuner::process (int nfram, float const* inp, float* out)
 			// Interpolate and crossfade.
 			while (k--) {
 				i  = (int)r1;
-				ii = i + lra;
+				ii = i + _lastreadahead;
 				if (ii >= _ipsize)
 					ii -= _ipsize;
 				u1 = cubic (_ipbuff + ii, r1 - i);
 
 				i  = (int)r2;
-				ii = i + ra;
+				ii = i + _readahead;
 				if (ii >= _ipsize)
 					ii -= _ipsize;
 				u2 = cubic (_ipbuff + ii, r2 - i);
@@ -242,7 +229,7 @@ Retuner::process (int nfram, float const* inp, float* out)
 				if (r2 >= _ipsize)
 					r2 -= _ipsize;
 			}
-		} else if (ra == 0 && lra == 0) {
+		} else if (0 == _readahead && 0 == _lastreadahead) {
 			// Interpolation only.
 			fi += k;
 			while (k--) {
@@ -252,17 +239,17 @@ Retuner::process (int nfram, float const* inp, float* out)
 				if (r1 >= _ipsize)
 					r1 -= _ipsize;
 			}
-		} else if (ra != lra) {
+		} else if (_readahead != _lastreadahead) {
 			// crossfade from/to fastmode
 			while (k--) {
 				i  = (int)r1;
-				ii = i + lra;
+				ii = i + _lastreadahead;
 				if (ii >= _ipsize)
 					ii -= _ipsize;
 				u1 = cubic (_ipbuff + ii, r1 - i);
 
 				i  = (int)r1;
-				ii = i + ra;
+				ii = i + _readahead;
 				if (ii >= _ipsize)
 					ii -= _ipsize;
 				u2 = cubic (_ipbuff + ii, r1 - i);
@@ -274,11 +261,11 @@ Retuner::process (int nfram, float const* inp, float* out)
 					r1 -= _ipsize;
 			}
 		} else {
-			// Interpolation only.
+			// Interpolation only (fastmode).
 			fi += k;
 			while (k--) {
 				i  = (int)r1;
-				ii = i + lra;
+				ii = i + _readahead;
 				if (ii >= _ipsize)
 					ii -= _ipsize;
 
@@ -289,21 +276,19 @@ Retuner::process (int nfram, float const* inp, float* out)
 			}
 		}
 
-
-		_lastfastmode = _fastmode;
-
-
 		// If at end of fragment check for jump.
 		if (fi == _frsize) {
 			fi = 0;
+
 			// Estimate the pitch every 4th fragment.
 			if (++_frcount == 4) {
-				_frcount = 0;
+				_frcount    = 0;
 				float cycle = findcycle ();
 				if (cycle > 0) {
 					// If the pitch estimate succeeds, find the
 					// nearest note and required resampling ratio.
 					_cycle = cycle;
+					_voiced = true;
 					_count = 0;
 					finderror ();
 				} else if (++_count > 5) {
@@ -313,6 +298,7 @@ Retuner::process (int nfram, float const* inp, float* out)
 					// pitch error is reset.
 					_count = 5;
 					_cycle = _frsize;
+					_voiced = false;
 					_error = 0;
 				} else if (_count == 2) {
 					// Bias is removed after two unvoiced fragments.
@@ -342,20 +328,34 @@ Retuner::process (int nfram, float const* inp, float* out)
 				dr *= 2;
 			}
 			ph = ph / _frsize + 2 * _ratio - 10;
-			if (ph > 0.5f) {
+			if (!_voiced) {
+				// If signal is unvoiced, reset playhead position and crossfade
+				// to avoid jitter and get a consistent output latency
+				_xfade = true;
+				r2 = _ipindex - _ipsize / 2;
+			} else if (ph > 0.5f) {
 				// Jump back by 'dr' frames and crossfade.
 				_xfade = true;
 				r2     = r1 - dr;
-				if (r2 < 0)
-					r2 += _ipsize;
 			} else if (ph + dp < 0.5f) {
 				// Jump forward by 'dr' frames and crossfade.
 				_xfade = true;
 				r2     = r1 + dr;
-				if (r2 >= _ipsize)
-					r2 -= _ipsize;
 			} else
 				_xfade = false;
+
+			if (r2 < 0)
+				r2 += _ipsize;
+
+			// Fast mode allows outputting the signal before the pitch has been computed,
+			// resulting in a lower latency at the cost of a small delay between the correction
+			// and the pitch analysis. This is useful in live situation.
+			_lastreadahead = _readahead;
+
+			if (_fastmode)
+				_readahead = _ipsize * 7 / 16;
+			else
+				_readahead = 0;
 		}
 	}
 
@@ -439,10 +439,10 @@ Retuner::findcycle (void)
 		y = z;
 	}
 	if (j) {
-		x      = _fftTdata[j - 1];
-		y      = _fftTdata[j];
-		z      = _fftTdata[j + 1];
-		if (fabsf(z - 2 * y + x) > 2e-9f) {
+		x = _fftTdata[j - 1];
+		y = _fftTdata[j];
+		z = _fftTdata[j + 1];
+		if (fabsf (z - 2 * y + x) > 2e-9f) {
 			cycle = j + 0.5f * (x - z) / (z - 2 * y + x - 1e-9f);
 		}
 	}

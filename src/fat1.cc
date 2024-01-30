@@ -22,11 +22,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef HAVE_LV2_1_18_6
+#include <lv2/atom/atom.h>
+#include <lv2/atom/forge.h>
+#include <lv2/core/lv2.h>
+#include <lv2/log/logger.h>
+#include <lv2/midi/midi.h>
+#else
 #include <lv2/lv2plug.in/ns/ext/atom/atom.h>
 #include <lv2/lv2plug.in/ns/ext/atom/forge.h>
 #include <lv2/lv2plug.in/ns/ext/log/logger.h>
 #include <lv2/lv2plug.in/ns/ext/midi/midi.h>
 #include <lv2/lv2plug.in/ns/lv2core/lv2.h>
+#endif
 
 #include "fat1.h"
 #include "retuner.h"
@@ -293,9 +301,14 @@ run (LV2_Handle instance, uint32_t n_samples)
 	self->retuner->set_fastmode (*self->port[FAT_FAST]);
 
 	if (*self->port[FAT_FAST]) {
-		*self->port[FAT_LTNC] = self->latency / 4;
+		*self->port[FAT_LTNC] = self->latency / 8;
 	} else {
 		*self->port[FAT_LTNC] = self->latency;
+	}
+
+	if (self->retuner->upsample ()) {
+		/* add 32 samples for resampler's latency */
+		*self->port[FAT_LTNC] += 32;
 	}
 
 	if (!self->midiin || n_samples == 0) {

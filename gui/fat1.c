@@ -23,9 +23,15 @@
 #include <string.h>
 #include <assert.h>
 
-#include "lv2/lv2plug.in/ns/ext/atom/atom.h"
-#include "lv2/lv2plug.in/ns/ext/atom/forge.h"
-#include "lv2/lv2plug.in/ns/ext/options/options.h"
+#ifdef HAVE_LV2_1_18_6
+#include <lv2/atom/atom.h>
+#include <lv2/atom/forge.h>
+#include <lv2/options/options.h>
+#else
+#include <lv2/lv2plug.in/ns/ext/atom/atom.h>
+#include <lv2/lv2plug.in/ns/ext/atom/forge.h>
+#include <lv2/lv2plug.in/ns/ext/options/options.h>
+#endif
 
 #include "../src/fat1.h"
 
@@ -327,7 +333,7 @@ static void dial_annotation_val (RobTkDial* d, cairo_t* cr, void* data) {
 
 static bool tooltip_overlay (RobWidget* rw, cairo_t* cr, cairo_rectangle_t* ev) {
 	Fat1UI* ui = (Fat1UI*)rw->top;
-	assert (ui->tt_id >= 0 && ui->tt_id < 5);
+	assert (ui->tt_id >= 0 && ui->tt_id < 6);
 
 	cairo_save(cr);
 	rw->resized = TRUE;
@@ -1068,7 +1074,7 @@ static RobWidget* toplevel (Fat1UI* ui, void* const top) {
 	/* main widget: layout */
 	ui->rw = rob_hbox_new (FALSE, 2);
 	robwidget_make_toplevel (ui->rw, top);
-	robwidget_toplevel_enable_scaling (ui->rw);
+	robwidget_toplevel_enable_scaling (ui->rw, NULL, NULL);
 
 	ui->font[0] = pango_font_description_from_string ("Mono 9px");
 	ui->font[1] = pango_font_description_from_string ("Mono 10px");

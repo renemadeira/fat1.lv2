@@ -96,6 +96,12 @@ public:
 		return 12.0f * _error;
 	}
 
+	bool
+	upsample (void) const
+	{
+		return _upsamp;
+	}
+
 private:
 	float findcycle (void);
 	void  finderror (void);
@@ -140,8 +146,9 @@ private:
 
 	float _notescale[12];
 	bool  _fastmode;
-	bool  _lastfastmode;
-	int   _readahed;
+	int   _readahead;
+	int   _lastreadahead;
+	bool  _voiced;
 };
 
 }; // namespace LV2AT
